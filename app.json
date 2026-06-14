@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "RollAndLearn",
-    "slug": "RollAndLearn",
+    "name": "Roll & Learn",
+    "slug": "roll-and-learn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rollandlearn.app"
     },
     "android": {
+      "package": "com.rollandlearn.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +22,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }
