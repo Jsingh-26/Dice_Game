@@ -1,59 +1,65 @@
 # Roll & Learn
 
-A simple, colorful dice game for young children (built for a 5‑year‑old). Each
-round, the child rolls the dice and answers three quick questions about it:
+A counting game for young children on Android (built for a 5-year-old): roll a die, count the dots, pick the number word, name the color. Expo + React Native + TypeScript.
 
-1. **Count** the dots and tap the number.
-2. Tap the matching **number word** (`one`, `two`, `three`, …).
-3. Tap the **color** of the dice.
+[![CI](https://github.com/Jsingh-26/roll-and-learn/actions/workflows/ci.yml/badge.svg)](https://github.com/Jsingh-26/roll-and-learn/actions/workflows/ci.yml)
 
-Correct taps earn stars, finished rounds earn collectible stickers (saved on the
-device), and there are sounds, gentle haptics, and a confetti celebration. Wrong
-taps are forgiving — a soft "try again," never a harsh buzzer.
+<img src="docs/screenshot.png" alt="A red die showing six dots under the question 'How many dots?', with answer buttons 5, 3 and 6." width="300">
 
-Built with **Expo (SDK 56)** + **React Native** + **TypeScript**.
+<sub>Screenshot from an Expo web export of the same code; the app itself targets Android.</sub>
 
-## Run it locally
+## How it works
+
+- Each round the child rolls, then answers three questions about the die: **how many dots** (tap the number), **which word** (`one`, `two`, `three`, …), and **what color**.
+- Each question shows the right answer and two random wrong ones, shuffled.
+- Correct taps earn stars; a finished round earns a collectible sticker, saved on the device with AsyncStorage.
+- Right answers get a sound and a haptic tap; a finished round gets confetti. Wrong taps get a soft "try again", never a harsh buzzer.
+- The whole game lives in `src/GameScreen.tsx`; the die, confetti, sounds and the color and word tables are small separate files.
+
+## Decisions
+
+- **Sounds are generated, not downloaded.** `scripts/gen-sounds.js` writes every effect as a WAV from code, so there are no third-party audio files and no licenses to track.
+- **The die is drawn from plain Views, not images.** A bold face color, a thick white border and pip colors picked for contrast (dark dots on yellow) keep it readable on any background. This replaced an earlier version where the die clashed with the background.
+- **The test build is an APK, not an app bundle.** The `preview` profile in [`eas.json`](./eas.json) outputs an `.apk` so it installs straight onto a phone; `production` keeps the Play Store app bundle.
+
+## Tests and running locally
+
+There are no automated tests yet. CI runs `npm ci` and a TypeScript check (`npx tsc --noEmit`) on every push to `main` and every pull request.
 
 ```bash
 npm install
-npx expo start
+npx tsc --noEmit    # same check as CI
+npx expo start      # scan the QR code with Expo Go, or press "a" for an Android emulator
 ```
 
-Then open the project in **Expo Go** on a phone (scan the QR code), or run on an
-emulator with `npm run android`.
+### Build an installable APK
 
-## Build an installable APK
-
-Uses [EAS Build](https://docs.expo.dev/build/introduction/) (cloud). You need a
-free [Expo account](https://expo.dev).
+Uses [EAS Build](https://docs.expo.dev/build/introduction/) (cloud) and a free [Expo account](https://expo.dev).
 
 ```bash
 npm install -g eas-cli
 eas login
-eas build -p android --profile preview   # produces a directly-installable .apk
+eas build -p android --profile preview
 ```
 
-The `preview` profile in [`eas.json`](./eas.json) is configured to output an APK
-(rather than an AAB) so it can be installed straight onto a device.
-
-## Sound effects
-
-All sound effects are **synthesized** (no third‑party audio assets) by a small
-script, so they're completely license‑free:
+### Regenerate the sounds
 
 ```bash
-node scripts/gen-sounds.js   # regenerates assets/sounds/*.wav
+node scripts/gen-sounds.js   # rewrites assets/sounds/*.wav
 ```
 
 ## Project layout
 
 | Path | What it is |
 |------|------------|
-| `App.tsx` | App entry — initializes audio, renders the game |
-| `src/GameScreen.tsx` | Main game: round flow, scoring, stickers, animations |
-| `src/Dice.tsx` | Dice face drawn from plain Views (bold color + white outline) |
+| `App.tsx` | App entry: sets up audio, renders the game |
+| `src/GameScreen.tsx` | Round flow, scoring, stickers, animations |
+| `src/Dice.tsx` | Die face drawn from plain Views |
 | `src/Confetti.tsx` | Confetti celebration |
-| `src/sounds.ts` | Loads and plays the synthesized sound effects |
-| `src/colors.ts` | Dice colors, number words, pip layouts, stickers |
+| `src/sounds.ts` | Loads and plays the sound effects |
+| `src/colors.ts` | Die colors, number words, pip layouts, stickers |
 | `scripts/gen-sounds.js` | Generates the WAV sound effects |
+
+## License
+
+MIT
