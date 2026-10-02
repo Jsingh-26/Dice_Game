@@ -27,7 +27,8 @@ import {
   CARD_BORDER,
 } from './colors';
 
-type Phase = 'idle' | 'rolling' | 'count' | 'word' | 'color' | 'done';
+type Phase = 'idle' | 'rolling' | 'count' | 'word' | 'color' | 'sum' | 'done';
+type Mode = 'simple' | 'challenge';
 type OptKind = 'number' | 'word' | 'color';
 type Option = { id: string; kind: OptKind; num?: number; color?: DiceColor; correct: boolean };
 
@@ -92,10 +93,11 @@ function OptionButton({
         style={[styles.opt, correctReveal && styles.optCorrect]}
       >
         {opt.kind === 'color' ? (
-          <>
-            <View style={[styles.swatch, { backgroundColor: opt.color!.hex }]} />
-            <Text style={styles.optColorLabel}>{opt.color!.name}</Text>
-          </>
+          // Show only the color *name* (in neutral dark text) so the child has
+          // to read the word — not just match a colored swatch by sight.
+          <Text style={styles.optWord} numberOfLines={1} adjustsFontSizeToFit>
+            {opt.color!.name}
+          </Text>
         ) : opt.kind === 'word' ? (
           <Text style={styles.optWord}>{NUMBER_WORDS[opt.num!]}</Text>
         ) : (
@@ -108,9 +110,12 @@ function OptionButton({
 
 export default function GameScreen() {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [mode, setMode] = useState<Mode>('simple');
   const [value, setValue] = useState(1);
   const [color, setColor] = useState<DiceColor>(DICE_COLORS[0]);
+  const [value2, setValue2] = useState(1);
   const [display, setDisplay] = useState<{ v: number; c: DiceColor }>({ v: 0, c: DICE_COLORS[0] });
+  const [display2, setDisplay2] = useState<{ v: number; c: DiceColor }>({ v: 0, c: DICE_COLORS[1] });
   const [options, setOptions] = useState<Option[]>([]);
   const [stars, setStars] = useState(0);
   const [stickers, setStickers] = useState<string[]>([]);
@@ -161,6 +166,31 @@ export default function GameScreen() {
       correct: c.key === correct.key,
     }));
   }
+  // For Challenge mode: the answer is the sum of two dice (2..12), with two
+  // nearby wrong numbers as distractors.
+  function sumOptions(correct: number): Option[] {
+    const pool: number[] = [];
+    for (let n = 2; n <= 12; n++) if (n !== correct) pool.push(n);
+    const others = shuffle(pool).slice(0, 2);
+    return shuffle([correct, ...others]).map((n) => ({
+      id: `sum-${n}`,
+      kind: 'number',
+      num: n,
+      correct: n === correct,
+    }));
+  }
+
+  function chooseMode(m: Mode) {
+    if (phase === 'rolling') return;
+    setMode(m);
+    setPhase('idle');
+    setOptions([]);
+    setStars(0);
+    setLocked(false);
+    setDisplay({ v: 0, c: DICE_COLORS[0] });
+    setDisplay2({ v: 0, c: DICE_COLORS[1] });
+    setPrompt(m === 'challenge' ? 'Add two dice! Tap to roll.' : 'Tap the big button to roll!');
+  }
 
   function roll() {
     haptic('light');
@@ -179,7 +209,11 @@ export default function GameScreen() {
       useNativeDriver: true,
     }).start();
 
-    const iv = setInterval(() => setDisplay({ v: 1 + rint(6), c: pick(DICE_COLORS) }), 80);
+    const two = mode === 'challenge';
+    const iv = setInterval(() => {
+      setDisplay({ v: 1 + rint(6), c: pick(DICE_COLORS) });
+      if (two) setDisplay2({ v: 1 + rint(6), c: pick(DICE_COLORS) });
+    }, 80);
     later(() => {
       clearInterval(iv);
       const v = 1 + rint(6);
@@ -187,9 +221,15 @@ export default function GameScreen() {
       setValue(v);
       setColor(c);
       setDisplay({ v, c });
+      let v2 = 0;
+      if (two) {
+        v2 = 1 + rint(6);
+        setValue2(v2);
+        setDisplay2({ v: v2, c: pick(DICE_COLORS) });
+      }
       popScale.setValue(0.6);
       Animated.spring(popScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }).start();
-      later(() => askCount(v), 360);
+      later(() => (two ? askSum(v, v2) : askCount(v)), 360);
     }, 720);
   }
 
@@ -210,6 +250,12 @@ export default function GameScreen() {
     setLocked(false);
     setPrompt('What color is the dice?');
     setOptions(colorOptions(color));
+  }
+  function askSum(a: number, b: number) {
+    setPhase('sum');
+    setLocked(false);
+    setPrompt(`Add them up!  ${a} + ${b} = ?`);
+    setOptions(sumOptions(a + b));
   }
 
   function finishRound() {
@@ -247,6 +293,10 @@ export default function GameScreen() {
     } else if (phase === 'color') {
       setPrompt(`Yes! ${color.name}!`);
       later(finishRound, 650);
+    } else if (phase === 'sum') {
+      setStars(3); // adding two dice is the whole round — award all the stars
+      setPrompt(`Yes! ${value} + ${value2} = ${value + value2}.`);
+      later(finishRound, 850);
     }
     return true;
   }
@@ -267,7 +317,15 @@ export default function GameScreen() {
         <Text style={styles.prompt}>{prompt}</Text>
 
         <Animated.View style={{ transform: [{ rotate: spin }, { scale: popScale }] }}>
-          <Dice value={display.v} color={display.c} size={148} />
+          {mode === 'challenge' ? (
+            <View style={styles.diceRow}>
+              <Dice value={display.v} color={display.c} size={110} />
+              <Text style={styles.plusSign}>+</Text>
+              <Dice value={display2.v} color={display2.c} size={110} />
+            </View>
+          ) : (
+            <Dice value={display.v} color={display.c} size={148} />
+          )}
         </Animated.View>
 
         <View style={styles.starsRow}>
@@ -287,9 +345,25 @@ export default function GameScreen() {
 
       <View style={styles.footer}>
         {showRoll ? (
-          <Pressable style={({ pressed }) => [styles.rollBtn, pressed && { opacity: 0.88 }]} onPress={roll}>
-            <Text style={styles.rollBtnText}>{phase === 'done' ? 'Roll again!' : 'Roll the dice!'}</Text>
-          </Pressable>
+          <>
+            <View style={styles.modeRow}>
+              <Pressable
+                onPress={() => chooseMode('simple')}
+                style={[styles.modeBtn, mode === 'simple' && styles.modeBtnOn]}
+              >
+                <Text style={[styles.modeText, mode === 'simple' && styles.modeTextOn]}>🎲 Count</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => chooseMode('challenge')}
+                style={[styles.modeBtn, mode === 'challenge' && styles.modeBtnOn]}
+              >
+                <Text style={[styles.modeText, mode === 'challenge' && styles.modeTextOn]}>➕ Add two</Text>
+              </Pressable>
+            </View>
+            <Pressable style={({ pressed }) => [styles.rollBtn, pressed && { opacity: 0.88 }]} onPress={roll}>
+              <Text style={styles.rollBtnText}>{phase === 'done' ? 'Roll again!' : 'Roll the dice!'}</Text>
+            </Pressable>
+          </>
         ) : (
           <View style={{ height: 60 }} />
         )}
@@ -362,9 +436,21 @@ const styles = StyleSheet.create({
   optCorrect: { borderColor: '#22C55E', backgroundColor: '#EAFBF0' },
   optNum: { fontSize: 34, fontWeight: '800', color: TEXT_DARK },
   optWord: { fontSize: 26, fontWeight: '800', color: TEXT_DARK },
-  optColorLabel: { fontSize: 16, fontWeight: '700', color: TEXT_DARK, marginTop: 6 },
-  swatch: { width: 38, height: 38, borderRadius: 10, borderWidth: 2, borderColor: '#FFFFFF' },
+  diceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  plusSign: { fontSize: 40, fontWeight: '800', color: TEXT_DARK, marginHorizontal: 2 },
   footer: { paddingHorizontal: 20, paddingBottom: 12, gap: 6 },
+  modeRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 4 },
+  modeBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: CARD_BORDER,
+    backgroundColor: '#FFFFFF',
+  },
+  modeBtnOn: { borderColor: '#22C55E', backgroundColor: '#EAFBF0' },
+  modeText: { fontSize: 15, fontWeight: '700', color: TEXT_SOFT },
+  modeTextOn: { color: '#1B8A4B' },
   rollBtn: {
     backgroundColor: '#22C55E',
     borderRadius: 22,

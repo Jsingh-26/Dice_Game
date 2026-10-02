@@ -10,7 +10,8 @@ A counting game for young children on Android (built for a 5-year-old): roll a d
 
 ## How it works
 
-- Each round the child rolls, then answers three questions about the die: **how many dots** (tap the number), **which word** (`one`, `two`, `three`, …), and **what color**.
+- Each round the child rolls, then answers three questions about the die: **how many dots** (tap the number), **which word** (`one`, `two`, `three`, …), and **what color** (the answers show the color's name as a word to read, not a swatch to match).
+- Two modes: **🎲 Count** (one die) and **➕ Add two** (two dice; the answer is the sum, 2–12, with nearby wrong answers).
 - Each question shows the right answer and two random wrong ones, shuffled.
 - Correct taps earn stars; a finished round earns a collectible sticker, saved on the device with AsyncStorage.
 - Right answers get a sound and a haptic tap; a finished round gets confetti. Wrong taps get a soft "try again", never a harsh buzzer.
@@ -29,8 +30,20 @@ There are no automated tests yet. CI runs `npm ci` and a TypeScript check (`npx 
 ```bash
 npm install
 npx tsc --noEmit    # same check as CI
-npx expo start      # scan the QR code with Expo Go, or press "a" for an Android emulator
+npx expo start --dev-client --tunnel   # needs the dev-client APK (below); store Expo Go can't open SDK 56
+npm run android     # or run on an Android emulator
 ```
+
+### One-time: the development build
+
+The app targets Expo SDK 56, which the store version of Expo Go doesn't run. Build a small dev client once, install it on the phone, then scan the QR from it:
+
+```bash
+npm install -g eas-cli && eas login
+eas build -p android --profile development   # prints a link to the .apk
+```
+
+The repo also opens ready-to-run in GitHub Codespaces (`.devcontainer/`).
 
 ### Build an installable APK
 
